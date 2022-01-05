@@ -1,8 +1,6 @@
 NAME := mute-service
 OWNER := byuoitav
 PKG := github.com/${OWNER}/${NAME}
-BUILD_PKG_CENTRAL := ${PKG}/cmd/central
-BUILD_PKG_LOCAL:= ${PKG}/cmd/local
 DOCKER_URL := docker.pkg.github.com
 
 # version:
