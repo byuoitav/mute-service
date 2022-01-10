@@ -66,8 +66,17 @@ func requestAVState(url string, log *zap.Logger) (*AVState, error) {
 func updateAVState(url string, state *AVState, log *zap.Logger) error {
 	body, _ := json.Marshal(state)
 
+	client := &http.Client{}
+
 	log.Debug("sending request to av-api to update room state")
-	resp, err := http.Post(url, "application/json", bytes.NewBuffer(body))
+	request, err := http.NewRequest(http.MethodPut, url, bytes.NewBuffer(body))
+	if err != nil {
+		log.Error("failed to create http request to update room state")
+		return err
+	}
+
+	request.Header.Set("Content-Type", "application/json; charset=utf-8")
+	resp, err := client.Do(request)
 	if err != nil {
 		log.Error("failed to send av-api request to update room state")
 		return err
