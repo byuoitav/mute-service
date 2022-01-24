@@ -12,23 +12,28 @@ import (
 )
 
 type AVState struct {
-	Displays     []Displays     `json:"displays"`
-	AudioDevices []AudioDevices `json:"audioDevices"`
+	Displays     []Display     `json:"displays"`
+	AudioDevices []AudioDevice `json:"audioDevices"`
 }
 
-type AudioDevices struct {
-	Name   string `json:"name"`
-	Power  string `json:"power"`
-	Input  string `json:"input"`
-	Muted  bool   `json:"muted"`
-	Volume int    `json:"volume"`
+type AudioDevice struct {
+	Name  string `json:"name"`
+	Power power  `json:"power"`
+	Input string `json:"-"`
+	Muted bool   `json:"muted"`
 }
 
-type Displays struct {
-	Name    string `json:"name"`
-	Power   string `json:"power"`
-	Input   string `json:"input"`
-	Blanked bool   `json:"blanked"`
+type Display struct {
+	Name  string `json:"name"`
+	Power power  `json:"power"`
+	Input string `json:"-"`
+}
+
+// prevent posting power when muting
+type power string
+
+func (power) MarshalJSON() ([]byte, error) {
+	return []byte(`""`), nil
 }
 
 func requestAVState(url string, log *zap.Logger) (*AVState, error) {
