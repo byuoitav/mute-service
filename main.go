@@ -1,7 +1,13 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
+	"io"
+	"net/http"
+	"os"
+	"regexp"
+	"time"
 
 	"github.com/byuoitav/mute-service/state"
 
@@ -18,12 +24,14 @@ func main() {
 		roomID     string
 		hubAddress string
 		apiAddress string
+		dbAddress  string
 	)
 
 	pflag.StringVarP(&logLevel, "log-level", "L", "info", "Level at which the logger operates. Refer to https://godoc.org/go.uber.org/zap/zapcore#Level for options")
 	pflag.StringVarP(&roomID, "room-id", "", "", "Room id as found in couch")
 	pflag.StringVarP(&hubAddress, "hub-address", "", "", "Address of the event hub")
 	pflag.StringVarP(&apiAddress, "av-api", "", "", "Address of the av-api")
+	pflag.StringVarP(&dbAddress, "db-address", "", "", "Address of the room database")
 	pflag.Parse()
 
 	//set up logger
@@ -36,6 +44,13 @@ func main() {
 		log.Fatal("Event hub address required. Use --hub-address to provide the address of the event hub")
 	} else if apiAddress == "" {
 		log.Fatal("AV API address required. Use --av-api to provide the address of the av-api")
+	}
+
+	if cancelConditions(dbAddress, roomID) {
+		log.Info("cancel conditions met; sleeping...")
+		for {
+			time.Sleep(600 * time.Second)
+		}
 	}
 
 	roomManager := &state.RoomStateManager{
@@ -75,4 +90,50 @@ func main() {
 
 func checkEvent(event events.Event) bool {
 	return event.Key == "muted" || event.Key == "input" || event.Key == "power" || event.Value == "master volume mute on display page"
+}
+
+func cancelConditions(dbAddress, roomID string) bool {
+	if checkHostname() {
+		return !checkRoomConfig(dbAddress, roomID)
+	}
+	return true
+}
+
+func checkHostname() bool {
+	hostname, err := os.ReadFile("/etc/hostname")
+	if err != nil {
+		return false
+	}
+
+	found, _ := regexp.Match(`CP1`, hostname)
+	return found
+}
+
+func checkRoomConfig(dbAddress, roomID string) bool {
+	//get room config
+	resp, err := http.Get("http://" + dbAddress + "/rooms/" + roomID)
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+
+	body, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return false
+	}
+
+	type configuration struct {
+		AutoMute bool `json:"autoMute"`
+	}
+
+	type roomConfig struct {
+		Config configuration `json:"configuration"`
+	}
+
+	var config roomConfig
+	if err = json.Unmarshal(body, &config); err != nil {
+		return false
+	}
+
+	return config.Config.AutoMute
 }
