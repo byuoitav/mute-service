@@ -4,37 +4,40 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 )
-
-func TestResolveRoom(t *testing.T) {
-
-}
 
 func TestPowerOn(t *testing.T) {
 	manager := &RoomStateManager{
-		Log:                nil,
+		Log:                zap.NewExample(),
 		RoomID:             "",
 		AvApiAddress:       "",
 		AudioPriorityCache: make(map[string]string),
 		RoomState: &AVState{
 			AudioDevices: []AudioDevice{
 				{
-					Name:  "D1",
-					Power: "standby",
+					AudioBase: AudioBase{
+						Name:  "D1",
+						Muted: false,
+					},
+					Power: "on",
 					Input: "VIA1",
-					Muted: false,
 				},
 				{
-					Name:  "D2",
-					Power: "standby",
+					AudioBase: AudioBase{
+						Name:  "D2",
+						Muted: false,
+					},
+					Power: "on",
 					Input: "VIA1",
-					Muted: false,
 				},
 				{
-					Name:  "D3",
-					Power: "standby",
+					AudioBase: AudioBase{
+						Name:  "D3",
+						Muted: false,
+					},
+					Power: "on",
 					Input: "VIA1",
-					Muted: false,
 				},
 			},
 		},
@@ -47,29 +50,35 @@ func TestPowerOn(t *testing.T) {
 
 func TestPowerOff(t *testing.T) {
 	manager := &RoomStateManager{
-		Log:                nil,
+		Log:                zap.NewExample(),
 		RoomID:             "",
 		AvApiAddress:       "",
 		AudioPriorityCache: make(map[string]string),
 		RoomState: &AVState{
 			AudioDevices: []AudioDevice{
 				{
-					Name:  "D1",
+					AudioBase: AudioBase{
+						Name:  "D1",
+						Muted: false,
+					},
 					Power: "on",
 					Input: "VIA1",
-					Muted: false,
 				},
 				{
-					Name:  "D2",
+					AudioBase: AudioBase{
+						Name:  "D2",
+						Muted: false,
+					},
 					Power: "on",
 					Input: "VIA1",
-					Muted: false,
 				},
 				{
-					Name:  "D3",
+					AudioBase: AudioBase{
+						Name:  "D3",
+						Muted: false,
+					},
 					Power: "on",
 					Input: "VIA1",
-					Muted: false,
 				},
 			},
 		},
@@ -89,36 +98,42 @@ func TestCompareInput(t *testing.T) {
 		RoomState: &AVState{
 			AudioDevices: []AudioDevice{
 				{
-					Name:  "D1",
+					AudioBase: AudioBase{
+						Name:  "D1",
+						Muted: false,
+					},
 					Power: "on",
 					Input: "VIA1",
-					Muted: false,
 				},
 				{
-					Name:  "D2",
+					AudioBase: AudioBase{
+						Name:  "D2",
+						Muted: false,
+					},
 					Power: "on",
 					Input: "VIA1",
-					Muted: false,
 				},
 				{
-					Name:  "D3",
+					AudioBase: AudioBase{
+						Name:  "D3",
+						Muted: false,
+					},
 					Power: "on",
 					Input: "VIA1",
-					Muted: false,
 				},
 			},
 		},
 	}
 
-	display, ok := manager.compareInput("D2", "VIA1")
+	display, ok := manager.compareInput("ITB-1108A-D2", "VIA1")
 	assert.Equal(t, true, ok)
 	assert.Equal(t, &manager.RoomState.AudioDevices[1], display)
 
-	display, ok = manager.compareInput("D2", "VIA7")
+	display, ok = manager.compareInput("ITB-1108A-D2", "VIA7")
 	assert.Equal(t, false, ok)
 	assert.Equal(t, &manager.RoomState.AudioDevices[1], display)
 
-	display, ok = manager.compareInput("D20", "VIA1")
+	display, ok = manager.compareInput("ITB-1108A-D20", "VIA1")
 	assert.Equal(t, true, ok)
 	assert.Nil(t, display)
 }
@@ -132,36 +147,42 @@ func TestCompareMute(t *testing.T) {
 		RoomState: &AVState{
 			AudioDevices: []AudioDevice{
 				{
-					Name:  "D1",
+					AudioBase: AudioBase{
+						Name:  "D1",
+						Muted: false,
+					},
 					Power: "on",
 					Input: "VIA1",
-					Muted: false,
 				},
 				{
-					Name:  "D2",
+					AudioBase: AudioBase{
+						Name:  "D2",
+						Muted: true,
+					},
 					Power: "on",
 					Input: "VIA1",
-					Muted: true,
 				},
 				{
-					Name:  "D3",
+					AudioBase: AudioBase{
+						Name:  "D3",
+						Muted: true,
+					},
 					Power: "on",
 					Input: "VIA1",
-					Muted: true,
 				},
 			},
 		},
 	}
 
-	display, ok := manager.compareMute("D2", true)
+	display, ok := manager.compareMute("ITB-1108A-D2", true)
 	assert.Equal(t, true, ok)
 	assert.Equal(t, &manager.RoomState.AudioDevices[1], display)
 
-	display2, ok := manager.compareMute("D2", false)
+	display2, ok := manager.compareMute("ITB-1108A-D2", false)
 	assert.Equal(t, false, ok)
 	assert.Equal(t, &manager.RoomState.AudioDevices[1], display2)
 
-	display3, ok := manager.compareMute("D20", true)
+	display3, ok := manager.compareMute("ITB-1108A-D20", true)
 	assert.Equal(t, true, ok)
 	assert.Nil(t, display3)
 }
@@ -175,22 +196,28 @@ func TestFindDisplay(t *testing.T) {
 		RoomState: &AVState{
 			AudioDevices: []AudioDevice{
 				{
-					Name:  "D1",
+					AudioBase: AudioBase{
+						Name:  "D1",
+						Muted: false,
+					},
 					Power: "on",
 					Input: "VIA1",
-					Muted: false,
 				},
 				{
-					Name:  "D2",
+					AudioBase: AudioBase{
+						Name:  "D2",
+						Muted: false,
+					},
 					Power: "on",
 					Input: "VIA1",
-					Muted: false,
 				},
 				{
-					Name:  "D3",
+					AudioBase: AudioBase{
+						Name:  "D3",
+						Muted: false,
+					},
 					Power: "on",
 					Input: "VIA1",
-					Muted: false,
 				},
 			},
 		},
@@ -207,50 +234,50 @@ func TestGroupDisplays(t *testing.T) {
 	testState := &AVState{
 		Displays: []Display{
 			{
-				Name:  "D1",
-				Power: "on",
-				Input: "VIA1",
+				Name: "D1",
 			},
 			{
-				Name:  "D2",
-				Power: "on",
-				Input: "PC1",
+				Name: "D2",
 			},
 			{
-				Name:  "D3",
-				Power: "on",
-				Input: "PC1",
+				Name: "D3",
 			},
 			{
-				Name:  "D4",
-				Power: "on",
-				Input: "VIA1",
+				Name: "D4",
 			},
 		},
 		AudioDevices: []AudioDevice{
 			{
-				Name:  "D1",
+				AudioBase: AudioBase{
+					Name:  "D1",
+					Muted: false,
+				},
 				Power: "on",
 				Input: "VIA1",
-				Muted: false,
 			},
 			{
-				Name:  "D2",
+				AudioBase: AudioBase{
+					Name:  "D2",
+					Muted: false,
+				},
 				Power: "on",
 				Input: "PC1",
-				Muted: false,
 			},
 			{
-				Name:  "D3",
+				AudioBase: AudioBase{
+					Name:  "D3",
+					Muted: false,
+				},
 				Power: "on",
 				Input: "PC1",
-				Muted: false,
 			},
 			{
-				Name:  "D4",
+				AudioBase: AudioBase{
+					Name:  "D4",
+					Muted: false,
+				},
 				Power: "on",
 				Input: "VIA1",
-				Muted: false,
 			},
 		},
 	}
@@ -263,39 +290,39 @@ func TestGroupDisplays(t *testing.T) {
 	testState = &AVState{
 		Displays: []Display{
 			{
-				Name:  "D1",
-				Power: "on",
-				Input: "VIA1",
+				Name: "D1",
 			},
 			{
-				Name:  "D2",
-				Power: "on",
-				Input: "VIA2",
+				Name: "D2",
 			},
 			{
-				Name:  "D3",
-				Power: "on",
-				Input: "VIA3",
+				Name: "D3",
 			},
 		},
 		AudioDevices: []AudioDevice{
 			{
-				Name:  "D1",
+				AudioBase: AudioBase{
+					Name:  "D1",
+					Muted: false,
+				},
 				Power: "on",
 				Input: "VIA1",
-				Muted: false,
 			},
 			{
-				Name:  "D2",
+				AudioBase: AudioBase{
+					Name:  "D2",
+					Muted: false,
+				},
 				Power: "on",
 				Input: "VIA2",
-				Muted: false,
 			},
 			{
-				Name:  "D3",
+				AudioBase: AudioBase{
+					Name:  "D3",
+					Muted: false,
+				},
 				Power: "on",
 				Input: "VIA3",
-				Muted: false,
 			},
 		},
 	}
@@ -325,39 +352,39 @@ func TestMuteDuplicateDisplays(t *testing.T) {
 	avState := &AVState{
 		Displays: []Display{
 			{
-				Name:  "D4",
-				Power: "on",
-				Input: "VIA1",
+				Name: "D4",
 			},
 			{
-				Name:  "D2",
-				Power: "on",
-				Input: "VIA1",
+				Name: "D2",
 			},
 			{
-				Name:  "D3",
-				Power: "on",
-				Input: "VIA1",
+				Name: "D3",
 			},
 		},
 		AudioDevices: []AudioDevice{
 			{
-				Name:  "D4",
+				AudioBase: AudioBase{
+					Name:  "D4",
+					Muted: false,
+				},
 				Power: "on",
 				Input: "VIA1",
-				Muted: false,
 			},
 			{
-				Name:  "D2",
+				AudioBase: AudioBase{
+					Name:  "D2",
+					Muted: false,
+				},
 				Power: "on",
 				Input: "VIA1",
-				Muted: false,
 			},
 			{
-				Name:  "D3",
+				AudioBase: AudioBase{
+					Name:  "D3",
+					Muted: false,
+				},
 				Power: "on",
 				Input: "VIA1",
-				Muted: false,
 			},
 		},
 	}
@@ -378,39 +405,39 @@ func TestMuteDuplicateDisplays(t *testing.T) {
 	avState = &AVState{
 		Displays: []Display{
 			{
-				Name:  "D1",
-				Power: "on",
-				Input: "VIA1",
+				Name: "D1",
 			},
 			{
-				Name:  "D2",
-				Power: "on",
-				Input: "VIA1",
+				Name: "D2",
 			},
 			{
-				Name:  "D3",
-				Power: "on",
-				Input: "VIA1",
+				Name: "D3",
 			},
 		},
 		AudioDevices: []AudioDevice{
 			{
-				Name:  "D1",
+				AudioBase: AudioBase{
+					Name:  "D1",
+					Muted: false,
+				},
 				Power: "on",
 				Input: "VIA1",
-				Muted: false,
 			},
 			{
-				Name:  "D2",
+				AudioBase: AudioBase{
+					Name:  "D2",
+					Muted: false,
+				},
 				Power: "on",
 				Input: "VIA1",
-				Muted: false,
 			},
 			{
-				Name:  "D3",
+				AudioBase: AudioBase{
+					Name:  "D3",
+					Muted: false,
+				},
 				Power: "on",
 				Input: "VIA1",
-				Muted: false,
 			},
 		},
 	}

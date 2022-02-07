@@ -17,23 +17,23 @@ type AVState struct {
 }
 
 type AudioDevice struct {
-	Name  string `json:"name"`
-	Power power  `json:"power"`
-	Input string `json:"-"`
-	Muted bool   `json:"muted"`
+	AudioBase
+	Power string `json:"power"`
+	Input string `json:"input"`
 }
 
 type Display struct {
-	Name  string `json:"name"`
-	Power power  `json:"power"`
-	Input string `json:"-"`
+	Name string `json:"name"`
 }
 
-// prevent posting power when muting
-type power string
+// prevent posting power and input when muting displays
+type AudioBase struct {
+	Name  string `json:"name"`
+	Muted bool   `json:"muted"`
+}
 
-func (power) MarshalJSON() ([]byte, error) {
-	return []byte(`""`), nil
+func (ad AudioDevice) MarshalJSON() ([]byte, error) {
+	return json.Marshal(ad.AudioBase)
 }
 
 func requestAVState(url string, log *zap.Logger) (*AVState, error) {
@@ -63,6 +63,14 @@ func requestAVState(url string, log *zap.Logger) (*AVState, error) {
 	if roomState.AudioDevices == nil {
 		log.Error("no audio devices found in the room")
 		return nil, errors.New("no audio devices found in the room")
+	}
+
+	//trim audio devices that aren't a display
+	for i := 0; i < len(roomState.AudioDevices); i++ {
+		if _, err := parseDisplayNumber(roomState.AudioDevices[i].Name); err != nil {
+			roomState.AudioDevices = append(roomState.AudioDevices[:i], roomState.AudioDevices[i+1:]...)
+			i--
+		}
 	}
 
 	return &roomState, nil

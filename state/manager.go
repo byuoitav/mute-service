@@ -27,7 +27,6 @@ func (rm *RoomStateManager) HandleEvent(event events.Event) {
 			rm.powerOn()
 		}
 	} else if rm.checkPower() {
-		rm.Log.Debug("Power is on; handling event")
 		switch event.Key {
 		case "muted":
 			rm.Log.Debug("muted event")
@@ -37,6 +36,7 @@ func (rm *RoomStateManager) HandleEvent(event events.Event) {
 				return
 			}
 			if disp, same := rm.compareMute(event.TargetDevice.DeviceID, mutedStatus); !same {
+				rm.Log.Debug(fmt.Sprintf("%s : %v", event.TargetDevice.DeviceID, mutedStatus))
 				disp.Muted = mutedStatus
 
 				rm.ResolveRoom()
@@ -44,9 +44,32 @@ func (rm *RoomStateManager) HandleEvent(event events.Event) {
 		case "input":
 			rm.Log.Debug("input event")
 			if disp, same := rm.compareInput(event.TargetDevice.DeviceID, event.Value); !same {
+				rm.Log.Debug(fmt.Sprintf("%s : %s", event.TargetDevice.DeviceID, event.Value))
 				disp.Input = event.Value
 
 				rm.ResolveRoom()
+			}
+		case "user-interaction":
+			rm.Log.Debug("master mute pressed")
+			if event.Value == "master volume mute on display page" {
+				for i := range rm.RoomState.AudioDevices {
+					rm.RoomState.AudioDevices[i].Muted = true
+				}
+
+				rm.Log.Debug("parsing room id")
+				bldg, room, err := parseRoomID(rm.RoomID)
+				if err != nil {
+					rm.Log.Error("failed to parse room id", zap.Error(err))
+					return
+				}
+
+				rm.Log.Debug("sending updated room state to av-api")
+				if err := updateAVState("http://"+rm.AvApiAddress+"/buildings/"+bldg+"/rooms/"+room, rm.RoomState, rm.Log); err != nil {
+					rm.Log.Error("failed to update room state on av-api")
+					return
+				}
+
+				rm.Log.Debug(fmt.Sprint(rm.RoomState))
 			}
 		}
 	}
@@ -66,12 +89,15 @@ func (rm *RoomStateManager) powerOn() {
 	for i := range rm.RoomState.AudioDevices {
 		rm.RoomState.AudioDevices[i].Power = "on"
 	}
+
+	rm.ResolveRoom()
 }
 
 func (rm *RoomStateManager) powerOff() {
 	rm.Log.Debug("power off")
 	for i := range rm.RoomState.AudioDevices {
 		rm.RoomState.AudioDevices[i].Power = "standby"
+		rm.RoomState.AudioDevices[i].Muted = false
 	}
 }
 
@@ -122,7 +148,6 @@ func (rm *RoomStateManager) InitializeRoomState() error {
 		return err
 	}
 
-	//fetch room state
 	rm.Log.Debug("fetching room state from av-api")
 	currentState, err := requestAVState("http://"+rm.AvApiAddress+"/buildings/"+bldg+"/rooms/"+room, rm.Log)
 	if err != nil {
@@ -130,15 +155,17 @@ func (rm *RoomStateManager) InitializeRoomState() error {
 		return err
 	}
 
-	//save it in rm.RoomState
 	rm.RoomState = currentState
+	rm.Log.Debug(fmt.Sprint(rm.RoomState))
 
 	return nil
 }
 
 func (rm *RoomStateManager) ResolveRoom() error {
+	rm.Log.Debug(fmt.Sprint(rm.RoomState))
 	rm.Log.Debug("grouping displays with similar inputs")
 	displayGroups := groupDisplays(rm.RoomState)
+	rm.Log.Debug(fmt.Sprintf("Display groups: %v", displayGroups))
 
 	rm.Log.Debug("muting duplicates across all display groups")
 	for input, group := range displayGroups {
@@ -150,6 +177,7 @@ func (rm *RoomStateManager) ResolveRoom() error {
 			d.Muted = false
 		}
 	}
+	rm.Log.Debug(fmt.Sprint(rm.RoomState))
 
 	rm.Log.Debug("parsing room id")
 	bldg, room, err := parseRoomID(rm.RoomID)
@@ -163,7 +191,6 @@ func (rm *RoomStateManager) ResolveRoom() error {
 		rm.Log.Error("failed to update room state on av-api")
 		return err
 	}
-
 	return nil
 }
 
@@ -172,10 +199,10 @@ func groupDisplays(state *AVState) map[string][]string {
 	for _, disp := range state.Displays {
 		for _, audioDev := range state.AudioDevices {
 			if disp.Name == audioDev.Name {
-				if _, ok := inputGroups[disp.Input]; !ok {
-					inputGroups[disp.Input] = []string{disp.Name}
+				if _, ok := inputGroups[audioDev.Input]; !ok {
+					inputGroups[audioDev.Input] = []string{disp.Name}
 				} else {
-					inputGroups[disp.Input] = append(inputGroups[disp.Input], disp.Name)
+					inputGroups[audioDev.Input] = append(inputGroups[audioDev.Input], disp.Name)
 				}
 			}
 		}

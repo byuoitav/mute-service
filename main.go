@@ -46,7 +46,7 @@ func main() {
 		AudioPriorityCache: make(map[string]string),
 	}
 
-	// run on startup
+	// initialize room state on start up
 	log.Info("Initializing the room on startup")
 	if err := roomManager.InitializeRoomState(); err != nil {
 		log.Fatal("failed to initialize room", zap.Error(err))
@@ -65,7 +65,6 @@ func main() {
 
 	for {
 		event := messenger.ReceiveEvent()
-		// log.Debug("received event", zap.Any("event", event))
 		if checkEvent(event) {
 			log.Debug(fmt.Sprintf("handling event of type: %s", event.Key))
 
@@ -75,14 +74,5 @@ func main() {
 }
 
 func checkEvent(event events.Event) bool {
-	return event.Key == "muted" || event.Key == "input" || event.Key == "power"
+	return event.Key == "muted" || event.Key == "input" || event.Key == "power" || event.Value == "master volume mute on display page"
 }
-
-// Save av state
-// Listen for 'muted' or 'input' or 'power'
-// If power on 'standby' prevent taking action
-// If powered on and auto-generated, compare/update but no change?
-// If powered on and user-generated, compare/update
-// If no change -- take no action
-// If change, check for conflicts and resolve
-// Keep input cache for display audio priority
