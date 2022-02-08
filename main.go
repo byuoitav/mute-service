@@ -46,6 +46,7 @@ func main() {
 		log.Fatal("AV API address required. Use --av-api to provide the address of the av-api")
 	}
 
+	log.Info("Checking room configuration")
 	if cancelConditions(dbAddress, roomID) {
 		log.Info("cancel conditions met; sleeping...")
 		for {
