@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"regexp"
+	"strings"
 	"time"
 
 	"github.com/byuoitav/mute-service/state"
@@ -21,14 +21,14 @@ import (
 func main() {
 	var (
 		logLevel   string
-		roomID     string
+		deviceID   string
 		hubAddress string
 		apiAddress string
 		dbAddress  string
 	)
 
 	pflag.StringVarP(&logLevel, "log-level", "L", "info", "Level at which the logger operates. Refer to https://godoc.org/go.uber.org/zap/zapcore#Level for options")
-	pflag.StringVarP(&roomID, "room-id", "", "", "Room id as found in couch")
+	pflag.StringVarP(&deviceID, "device-id", "", "", "Device id as found in couch")
 	pflag.StringVarP(&hubAddress, "hub-address", "", "", "Address of the event hub")
 	pflag.StringVarP(&apiAddress, "av-api", "", "", "Address of the av-api")
 	pflag.StringVarP(&dbAddress, "db-address", "", "", "Address of the room database")
@@ -38,8 +38,8 @@ func main() {
 	_, log := logger(logLevel)
 	defer log.Sync()
 
-	if roomID == "" {
-		log.Fatal("Room ID required. Use --room-id to provide the id of the room")
+	if deviceID == "" {
+		log.Fatal("Device ID required. Use --device-id to provide the id of the device")
 	} else if hubAddress == "" {
 		log.Fatal("Event hub address required. Use --hub-address to provide the address of the event hub")
 	} else if apiAddress == "" {
@@ -47,11 +47,16 @@ func main() {
 	}
 
 	log.Info("Checking room configuration")
-	if cancelConditions(dbAddress, roomID) {
+	if cancelConditions(dbAddress, deviceID) {
 		log.Info("cancel conditions met; sleeping...")
 		for {
 			time.Sleep(600 * time.Second)
 		}
+	}
+
+	roomID, err := parseDeviceID(deviceID)
+	if err != nil {
+		log.Fatal(fmt.Sprintf("invalid device id: %s", deviceID), zap.Error(err))
 	}
 
 	roomManager := &state.RoomStateManager{
@@ -70,17 +75,17 @@ func main() {
 
 	// connect to the event hub
 	log.Info("Starting event hub messenger")
-	messenger, err := messenger.BuildMessenger(hubAddress, base.Messenger, 5000)
-	if err != nil {
-		log.Fatal("failed to build event hub messenger", zap.Error(err))
+	eventMessenger, nerr := messenger.BuildMessenger(hubAddress, base.Messenger, 5000)
+	if nerr != nil {
+		log.Fatal("failed to build event hub messenger", zap.Error(nerr))
 	}
 
 	// subscribe to and receive events from the hub
 	log.Info("Listening for room events")
-	messenger.SubscribeToRooms(roomID)
+	eventMessenger.SubscribeToRooms(roomID)
 
 	for {
-		event := messenger.ReceiveEvent()
+		event := eventMessenger.ReceiveEvent()
 		if checkEvent(event) {
 			log.Debug(fmt.Sprintf("handling event of type: %s", event.Key))
 
@@ -90,28 +95,27 @@ func main() {
 }
 
 func checkEvent(event events.Event) bool {
-	return event.Key == "muted" || event.Key == "input" || event.Key == "power" || event.Value == "master volume mute on display page"
+	return event.Key == "muted" || event.Key == "input" || event.Key == "power" || event.Value == "master volume mute on display page" || event.Value == "master volume set on display page"
 }
 
-func cancelConditions(dbAddress, roomID string) bool {
-	if checkHostname() {
-		return !checkRoomConfig(dbAddress, roomID)
+func cancelConditions(dbAddress, deviceID string) bool {
+	if checkForControlPi(deviceID) {
+		return !checkRoomConfig(dbAddress, deviceID)
 	}
 	return true
 }
 
-func checkHostname() bool {
-	hostname, err := os.ReadFile("/etc/hostname")
+func checkForControlPi(deviceID string) bool {
+	found, _ := regexp.Match(`CP1`, []byte(deviceID))
+	return found
+}
+
+func checkRoomConfig(dbAddress, deviceID string) bool {
+	roomID, err := parseDeviceID(deviceID)
 	if err != nil {
 		return false
 	}
 
-	found, _ := regexp.Match(`CP1`, hostname)
-	return found
-}
-
-func checkRoomConfig(dbAddress, roomID string) bool {
-	//get room config
 	resp, err := http.Get("http://" + dbAddress + "/rooms/" + roomID)
 	if err != nil {
 		return false
@@ -137,4 +141,13 @@ func checkRoomConfig(dbAddress, roomID string) bool {
 	}
 
 	return config.Config.AutoMute
+}
+
+func parseDeviceID(id string) (string, error) {
+	tokens := strings.Split(id, "-")
+	if len(tokens) != 3 {
+		return "", fmt.Errorf("invalid device id")
+	}
+
+	return tokens[0] + "-" + tokens[1], nil
 }
