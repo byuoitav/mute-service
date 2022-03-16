@@ -70,6 +70,21 @@ func (rm *RoomStateManager) HandleEvent(event events.Event) {
 				}
 
 				rm.Log.Debug(fmt.Sprint(rm.RoomState))
+			} else if event.Value == "master volume set on display page" {
+				rm.Log.Debug("master volume changed, resolving room muting")
+
+				rm.Log.Debug("parsing room id")
+				bldg, room, err := parseRoomID(rm.RoomID)
+				if err != nil {
+					rm.Log.Error("failed to parse room id", zap.Error(err))
+					return
+				}
+
+				rm.Log.Debug("resending room state to av-api")
+				if err := updateAVState("http://"+rm.AvApiAddress+"/buildings/"+bldg+"/rooms/"+room, rm.RoomState, rm.Log); err != nil {
+					rm.Log.Error("failed to update room state on av-api")
+					return
+				}
 			}
 		}
 	}
