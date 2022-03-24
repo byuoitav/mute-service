@@ -47,10 +47,14 @@ func main() {
 	}
 
 	log.Info("Checking room configuration")
-	if cancelConditions(dbAddress, deviceID) {
+	cancel, err := cancelConditions(dbAddress, deviceID)
+	if cancel {
 		log.Info("cancel conditions met; sleeping...")
-		for {
-			time.Sleep(600 * time.Second)
+		for cancel {
+			time.Sleep(300 * time.Second)
+			if err != nil { // in the event of an error when accessing the room config, check again in 5 min
+				cancel, err = cancelConditions(dbAddress, deviceID)
+			}
 		}
 	}
 
@@ -98,11 +102,12 @@ func checkEvent(event events.Event) bool {
 	return event.Key == "muted" || event.Key == "input" || event.Key == "power" || event.Value == "master volume mute on display page" || event.Value == "master volume set on display page"
 }
 
-func cancelConditions(dbAddress, deviceID string) bool {
+func cancelConditions(dbAddress, deviceID string) (bool, error) {
 	if checkForControlPi(deviceID) {
-		return !checkRoomConfig(dbAddress, deviceID)
+		status, err := checkRoomConfig(dbAddress, deviceID)
+		return !status, err
 	}
-	return true
+	return true, nil
 }
 
 func checkForControlPi(deviceID string) bool {
@@ -110,21 +115,21 @@ func checkForControlPi(deviceID string) bool {
 	return found
 }
 
-func checkRoomConfig(dbAddress, deviceID string) bool {
+func checkRoomConfig(dbAddress, deviceID string) (bool, error) {
 	roomID, err := parseDeviceID(deviceID)
 	if err != nil {
-		return false
+		return false, err
 	}
 
 	resp, err := http.Get("http://" + dbAddress + "/rooms/" + roomID)
 	if err != nil {
-		return false
+		return false, err
 	}
 	defer resp.Body.Close()
 
 	body, err := io.ReadAll(resp.Body)
 	if err != nil {
-		return false
+		return false, err
 	}
 
 	type configuration struct {
@@ -137,10 +142,10 @@ func checkRoomConfig(dbAddress, deviceID string) bool {
 
 	var config roomConfig
 	if err = json.Unmarshal(body, &config); err != nil {
-		return false
+		return false, err
 	}
 
-	return config.Config.AutoMute
+	return config.Config.AutoMute, nil
 }
 
 func parseDeviceID(id string) (string, error) {
