@@ -1,15 +1,16 @@
 package state
 
 import (
+	"log/slog"
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
 )
 
 func TestPowerOn(t *testing.T) {
 	manager := &RoomStateManager{
-		Log:                zap.NewExample(),
+		Log:                slog.New(slog.NewTextHandler(os.Stdout, nil)),
 		RoomID:             "",
 		AvApiAddress:       "",
 		AudioPriorityCache: make(map[string]string),
@@ -50,7 +51,7 @@ func TestPowerOn(t *testing.T) {
 
 func TestPowerOff(t *testing.T) {
 	manager := &RoomStateManager{
-		Log:                zap.NewExample(),
+		Log:                slog.New(slog.NewTextHandler(os.Stdout, nil)),
 		RoomID:             "",
 		AvApiAddress:       "",
 		AudioPriorityCache: make(map[string]string),

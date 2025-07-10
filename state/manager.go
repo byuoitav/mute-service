@@ -2,16 +2,16 @@ package state
 
 import (
 	"fmt"
+	"log/slog"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/byuoitav/common/v2/events"
-	"go.uber.org/zap"
 )
 
 type RoomStateManager struct {
-	Log                *zap.Logger
+	Log                *slog.Logger
 	RoomID             string
 	AvApiAddress       string
 	RoomState          *AVState
@@ -36,7 +36,9 @@ func (rm *RoomStateManager) HandleEvent(event events.Event) {
 				return
 			}
 			if disp, same := rm.compareMute(event.TargetDevice.DeviceID, mutedStatus); !same {
-				rm.Log.Debug(fmt.Sprintf("%s : %v", event.TargetDevice.DeviceID, mutedStatus))
+				rm.Log.Debug("mute status change",
+					slog.String("device", event.TargetDevice.DeviceID),
+					slog.Bool("muted", mutedStatus))
 				disp.Muted = mutedStatus
 
 				rm.ResolveRoom()
@@ -44,7 +46,9 @@ func (rm *RoomStateManager) HandleEvent(event events.Event) {
 		case "input":
 			rm.Log.Debug("input event")
 			if disp, same := rm.compareInput(event.TargetDevice.DeviceID, event.Value); !same {
-				rm.Log.Debug(fmt.Sprintf("%s : %s", event.TargetDevice.DeviceID, event.Value))
+				rm.Log.Debug("input change",
+					slog.String("device", event.TargetDevice.DeviceID),
+					slog.String("input", event.Value))
 				disp.Input = event.Value
 
 				rm.ResolveRoom()
@@ -59,7 +63,7 @@ func (rm *RoomStateManager) HandleEvent(event events.Event) {
 				rm.Log.Debug("parsing room id")
 				bldg, room, err := parseRoomID(rm.RoomID)
 				if err != nil {
-					rm.Log.Error("failed to parse room id", zap.Error(err))
+					rm.Log.Error("failed to parse room id", slog.Any("error", err))
 					return
 				}
 
@@ -69,14 +73,14 @@ func (rm *RoomStateManager) HandleEvent(event events.Event) {
 					return
 				}
 
-				rm.Log.Debug(fmt.Sprint(rm.RoomState))
+				rm.Log.Debug("room state updated", slog.Any("state", rm.RoomState))
 			} else if event.Value == "master volume set on display page" {
 				rm.Log.Debug("master volume changed, resolving room muting")
 
 				rm.Log.Debug("parsing room id")
 				bldg, room, err := parseRoomID(rm.RoomID)
 				if err != nil {
-					rm.Log.Error("failed to parse room id", zap.Error(err))
+					rm.Log.Error("failed to parse room id", slog.Any("error", err))
 					return
 				}
 
@@ -159,28 +163,28 @@ func (rm *RoomStateManager) InitializeRoomState() error {
 	rm.Log.Debug("parsing room id")
 	bldg, room, err := parseRoomID(rm.RoomID)
 	if err != nil {
-		rm.Log.Error("failed to parse room id", zap.Error(err))
+		rm.Log.Error("failed to parse room id", slog.Any("error", err))
 		return err
 	}
 
 	rm.Log.Debug("fetching room state from av-api")
 	currentState, err := requestAVState("http://"+rm.AvApiAddress+"/buildings/"+bldg+"/rooms/"+room, rm.Log)
 	if err != nil {
-		rm.Log.Error("failed to request room state from the av-api", zap.Error(err))
+		rm.Log.Error("failed to request room state from the av-api", slog.Any("error", err))
 		return err
 	}
 
 	rm.RoomState = currentState
-	rm.Log.Debug(fmt.Sprint(rm.RoomState))
+	rm.Log.Debug("room state initialized", slog.Any("state", rm.RoomState))
 
 	return nil
 }
 
 func (rm *RoomStateManager) ResolveRoom() error {
-	rm.Log.Debug(fmt.Sprint(rm.RoomState))
+	rm.Log.Debug("current room state", slog.Any("state", rm.RoomState))
 	rm.Log.Debug("grouping displays with similar inputs")
 	displayGroups := groupDisplays(rm.RoomState)
-	rm.Log.Debug(fmt.Sprintf("Display groups: %v", displayGroups))
+	rm.Log.Debug("display groups created", slog.Any("groups", displayGroups))
 
 	rm.Log.Debug("muting duplicates across all display groups")
 	for input, group := range displayGroups {
@@ -192,12 +196,12 @@ func (rm *RoomStateManager) ResolveRoom() error {
 			d.Muted = false
 		}
 	}
-	rm.Log.Debug(fmt.Sprint(rm.RoomState))
+	rm.Log.Debug("room state after muting duplicates", slog.Any("state", rm.RoomState))
 
 	rm.Log.Debug("parsing room id")
 	bldg, room, err := parseRoomID(rm.RoomID)
 	if err != nil {
-		rm.Log.Error("failed to parse room id", zap.Error(err))
+		rm.Log.Error("failed to parse room id", slog.Any("error", err))
 		return err
 	}
 
@@ -207,6 +211,16 @@ func (rm *RoomStateManager) ResolveRoom() error {
 		return err
 	}
 	return nil
+}
+
+// Export checkPower so it can be used by HTTP endpoints
+func (rm *RoomStateManager) CheckPower() bool {
+	return rm.checkPower()
+}
+
+// Export groupDisplays so it can be used by HTTP endpoints
+func GroupDisplays(state *AVState) map[string][]string {
+	return groupDisplays(state)
 }
 
 func groupDisplays(state *AVState) map[string][]string {
@@ -228,6 +242,7 @@ func groupDisplays(state *AVState) map[string][]string {
 func (rm *RoomStateManager) muteDuplicateDisplays(input string, displays []string, state *AVState) {
 	chosenDisplay := -1
 
+	// Step 1: Check audio priority cache for previously selected displays
 	if _, ok := rm.AudioPriorityCache[input]; ok {
 		for i, disp := range displays {
 			if disp == rm.AudioPriorityCache[input] {
@@ -236,6 +251,7 @@ func (rm *RoomStateManager) muteDuplicateDisplays(input string, displays []strin
 		}
 	}
 
+	// Step 2: If no cached preference exists, default to lowest numbered display
 	if chosenDisplay == -1 {
 		lowestDisplayNum := 100
 		chosenDisplay = 0
@@ -248,8 +264,10 @@ func (rm *RoomStateManager) muteDuplicateDisplays(input string, displays []strin
 		}
 	}
 
+	// Step 3: Remember this choice for future input changes (maintains cache)
 	rm.AudioPriorityCache[input] = displays[chosenDisplay]
 
+	// Step 4: Apply the muting - unmute chosen display, mute others with same input
 	for i := range state.AudioDevices {
 		if state.AudioDevices[i].Name == displays[chosenDisplay] {
 			state.AudioDevices[i].Muted = false
