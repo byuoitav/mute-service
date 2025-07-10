@@ -1,5 +1,11 @@
-FROM gcr.io/distroless/static
-LABEL Brayden Winterton <brayden_winterton@byu.edu>
+FROM alpine:3.18
+
+# Add metadata labels
+LABEL maintainer="byuoitav"
+LABEL description="Mute Service for AV room audio management"
+LABEL version="V0.0.4"
+
+RUN apk update && apk add bash && apk --no-cache add tzdata
 
 ARG NAME
 

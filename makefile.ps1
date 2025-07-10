@@ -56,19 +56,19 @@ function Build {
     $ORIGINAL_GOOS = $env:GOOS
     $ORIGINAL_GOARCH = $env:GOARCH
 
-    Write-Output ""
-    Write-Output "Building mute service for linux-amd64..."
-    $env:CGO_ENABLED = "0"
-    $env:GOOS = "linux"
-    $env:GOARCH = "amd64"
-    Invoke-Expression "go build -v -o ./dist/${NAME}-linux-amd64"
+    # Write-Output "*****************************************"
+    # Write-Output "Building mute service for linux-amd64..."
+    # Set-Item -Path env:CGO_ENABLED -Value 0
+    # Set-Item -Path env:GOOS -Value "linux"
+    # Set-Item -Path env:GOARCH -Value "amd64"
+    # Invoke-Expression "go build -o ./dist/${NAME}-amd64"
 
-    Write-Output ""
-    Write-Output "Building mute service for linux-arm..."
-    $env:CGO_ENABLED = "0"
-    $env:GOOS = "linux"
-    $env:GOARCH = "arm"
-    Invoke-Expression "go build -v -o ./dist/${NAME}-linux-arm"
+    Write-Output "*****************************************"
+    Write-Output "Building for linux-arm64"
+    Set-Item -Path env:CGO_ENABLED -Value 0
+    Set-Item -Path env:GOOS -Value "linux"
+    Set-Item -Path env:GOARCH -Value "arm64"
+    Invoke-Expression "go build -o ./dist/${NAME}-arm64"
 
     # Restore original environment variables
     $env:CGO_ENABLED = $ORIGINAL_CGO_ENABLED
@@ -92,25 +92,28 @@ function Cleanup {
 }
 
 function DockerFunc {
+    #can not just be docker because it creates an infinite loop
     Write-Output "Function Docker      Commit Hash: $COMMIT_HASH     Tag: $TAG"
-    
     if ($COMMIT_HASH -eq $TAG) {
-        Write-Output "Building dev container with tag $COMMIT_HASH"
+        Write-Output "Building dev containers with tag $COMMIT_HASH"
 
-        Write-Output "Building container $DOCKER_PKG/${NAME}-dev:$COMMIT_HASH"
-        Invoke-Expression "docker build -f dockerfile --build-arg NAME=${NAME}-linux-arm -t $DOCKER_PKG/${NAME}-dev:$COMMIT_HASH dist"
+        # Use buildx for arm64 and push directly
+        Write-Output "Building container $DOCKER_PKG/$NAME-dev:$COMMIT_HASH for linux/arm64"
+        Invoke-Expression "docker buildx build --platform linux/arm64 --build-arg NAME=$NAME-arm64 -t $DOCKER_PKG/$NAME-dev:$COMMIT_HASH --push dist"
     }
     elseif ($TAG -match $DEV_TAG_REGEX) {
-        Write-Output "Building dev container with tag $TAG"
+        Write-Output "Building dev containers with tag $TAG"
 
-        Write-Output "Building container $DOCKER_PKG/${NAME}-dev:$TAG"
-        Invoke-Expression "docker build -f dockerfile --build-arg NAME=${NAME}-linux-arm -t $DOCKER_PKG/${NAME}-dev:$TAG dist"
+        # Use buildx for arm64 and push directly
+        Write-Output "Building container $DOCKER_PKG/$NAME-dev:$TAG for linux/arm64"
+        Invoke-Expression "docker buildx build --platform linux/arm64 --build-arg NAME=$NAME-arm64 -t $DOCKER_PKG/$NAME-dev:$TAG --push dist"
     }
     elseif ($TAG -match $PRD_TAG_REGEX) {
-        Write-Output "Building prd container with tag $TAG"
+        Write-Output "Building prd containers with tag $TAG"
 
-        Write-Output "Building container $DOCKER_PKG/${NAME}:$TAG"
-        Invoke-Expression "docker build -f dockerfile --build-arg NAME=${NAME}-linux-arm -t $DOCKER_PKG/${NAME}:$TAG dist"
+        # Use buildx for arm64 and push directly
+        Write-Output "Building container $DOCKER_PKG/${NAME}:$TAG for linux/arm64"
+        Invoke-Expression "docker buildx build --platform linux/arm64 --build-arg NAME=$NAME-arm64 -t $DOCKER_PKG/${NAME}:$TAG --push dist"
     }
     else {
         Write-Output "Docker function quit unexpectedly. Commit Hash: $COMMIT_HASH     Tag: $TAG"
@@ -120,24 +123,33 @@ function DockerFunc {
 function Deploy {
     Write-Output "Deploy      Commit Hash: $COMMIT_HASH     Tag: $TAG"
 
-    Write-Output "Logging into Github Container Registry"
+    Write-Output "Logging into repo"    
     Invoke-Expression "docker login $DOCKER_URL -u $Env:DOCKER_USERNAME -p $Env:DOCKER_PASSWORD"
-
+    
     if ($COMMIT_HASH -eq $TAG) {
-        Write-Output "Pushing dev container with tag $COMMIT_HASH"
+        Write-Output "Pushing dev containers with tag $COMMIT_HASH"
 
+        # Write-Output "Pushing container $DOCKER_PKG/$NAME-amd64-dev:$COMMIT_HASH"
+        # Invoke-Expression "docker push $DOCKER_PKG/$NAME-amd64-dev:$COMMIT_HASH"
+    
         Write-Output "Pushing container $DOCKER_PKG/${NAME}-dev:$COMMIT_HASH"
         Invoke-Expression "docker push $DOCKER_PKG/${NAME}-dev:$COMMIT_HASH"
     }
     elseif ($TAG -match $DEV_TAG_REGEX) {
-        Write-Output "Pushing dev container with tag $TAG"
+        Write-Output "Pushing dev containers with tag $TAG"
 
+        # Write-Output "Pushing container $DOCKER_PKG/$NAME-amd64-dev:$TAG"
+        # Invoke-Expression "docker push $DOCKER_PKG/$NAME-amd64-dev:$TAG"
+    
         Write-Output "Pushing container $DOCKER_PKG/${NAME}-dev:$TAG"
         Invoke-Expression "docker push $DOCKER_PKG/${NAME}-dev:$TAG"
     }
     elseif ($TAG -match $PRD_TAG_REGEX) {
-        Write-Output "Pushing prd container with tag $TAG"
-
+        Write-Output "Pushing prd containers with tag $TAG"
+    
+        # Write-Output "Pushing container $DOCKER_PKG/$NAME-amd64:$TAG"
+        # Invoke-Expression "docker push $DOCKER_PKG/$NAME-amd64:$TAG"
+    
         Write-Output "Pushing container $DOCKER_PKG/${NAME}:$TAG"
         Invoke-Expression "docker push $DOCKER_PKG/${NAME}:$TAG"
     }
@@ -179,3 +191,4 @@ else {
     Write-Output "Please include a valid command parameter"
     Write-Output "Available commands: All, Deps, Build, Clean, Docker, DockerOnly, Deploy, DeployOnly"
 }
+
