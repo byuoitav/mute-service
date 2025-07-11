@@ -96,10 +96,10 @@ func main() {
 	logger.Info("Checking room configuration")
 	cancel, err := cancelConditions(*dbAddress, *dbUser, *dbPass, *deviceID)
 	if cancel {
-		logger.Info("cancel conditions met; sleeping...", slog.Any("error", err))
+		logger.Info("cancel conditions met; sleeping for 30 seconds...", slog.Any("error", err))
 		for cancel {
-			time.Sleep(300 * time.Second)
-			if err != nil { // in the event of an error when accessing the room config, check again in 5 min
+			time.Sleep(30 * time.Second)
+			if err != nil { // in the event of an error when accessing the room config, check again in 30 seconds
 				logger.Warn("retrying room configuration check due to previous error", slog.Any("error", err))
 				cancel, err = cancelConditions(*dbAddress, *dbUser, *dbPass, *deviceID)
 			}

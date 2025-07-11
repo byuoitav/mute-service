@@ -97,23 +97,29 @@ function DockerFunc {
     if ($COMMIT_HASH -eq $TAG) {
         Write-Output "Building dev containers with tag $COMMIT_HASH"
 
-        # Use buildx for arm64 and push directly
+        # Login before buildx push
+        Invoke-Expression "docker login $DOCKER_URL -u $Env:DOCKER_USERNAME -p $Env:DOCKER_PASSWORD"
+
         Write-Output "Building container $DOCKER_PKG/$NAME-dev:$COMMIT_HASH for linux/arm64"
-        Invoke-Expression "docker buildx build --platform linux/arm64 --build-arg NAME=$NAME-arm64 -t $DOCKER_PKG/$NAME-dev:$COMMIT_HASH --push dist"
+        Invoke-Expression "docker build -f dockerfile --platform linux/arm/v7 --build-arg NAME=$NAME-arm64 -t $DOCKER_PKG/$NAME-dev:$COMMIT_HASH --push dist"
     }
     elseif ($TAG -match $DEV_TAG_REGEX) {
         Write-Output "Building dev containers with tag $TAG"
 
-        # Use buildx for arm64 and push directly
+        # Login before buildx push
+        Invoke-Expression "docker login $DOCKER_URL -u $Env:DOCKER_USERNAME -p $Env:DOCKER_PASSWORD"
+
         Write-Output "Building container $DOCKER_PKG/$NAME-dev:$TAG for linux/arm64"
-        Invoke-Expression "docker buildx build --platform linux/arm64 --build-arg NAME=$NAME-arm64 -t $DOCKER_PKG/$NAME-dev:$TAG --push dist"
+        Invoke-Expression "docker build -f dockerfile --platform linux/arm/v7 --build-arg NAME=$NAME-arm64 -t $DOCKER_PKG/$NAME-dev:$TAG --push dist"
     }
     elseif ($TAG -match $PRD_TAG_REGEX) {
         Write-Output "Building prd containers with tag $TAG"
 
-        # Use buildx for arm64 and push directly
+        # Login before buildx push
+        Invoke-Expression "docker login $DOCKER_URL -u $Env:DOCKER_USERNAME -p $Env:DOCKER_PASSWORD"
+
         Write-Output "Building container $DOCKER_PKG/${NAME}:$TAG for linux/arm64"
-        Invoke-Expression "docker buildx build --platform linux/arm64 --build-arg NAME=$NAME-arm64 -t $DOCKER_PKG/${NAME}:$TAG --push dist"
+        Invoke-Expression "docker build -f dockerfile --platform linux/arm/v7 --build-arg NAME=$NAME-arm64 -t $DOCKER_PKG/${NAME}:$TAG --push dist"
     }
     else {
         Write-Output "Docker function quit unexpectedly. Commit Hash: $COMMIT_HASH     Tag: $TAG"
